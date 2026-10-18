@@ -60,10 +60,19 @@ TOOLS = [get_weather, add_numbers]
 
 
 # ---------- نقاط النهاية ----------
-@app.get("/healthz")
-def healthz():
-    """فحص صحة — يستخدمه Cloud Run والمراقبة."""
+@app.get("/health")
+def health():
+    """فحص صحة — يستخدمه Cloud Run والمراقبة.
+
+    ملاحظة: المسار /healthz محجوز في طبقة Google أمام Cloud Run ويرجع 404،
+    لذا نستخدم /health هنا (/healthz مُبقى كاسم بديل لا يضر).
+    """
     return jsonify({"ok": True, "model": MODEL_ID, "project": PROJECT_ID, "region": REGION})
+
+
+@app.get("/healthz")
+def health_alias():
+    return health()
 
 
 @app.post("/chat")

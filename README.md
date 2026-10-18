@@ -7,8 +7,9 @@
 
 - `POST /chat` — يرسل رسالة للوكيل ويستقبل الرد
 - أدوات حقيقية: `get_weather` (طقس تجريبي) و`add_numbers` (جمع)
-- `GET /` — واجهة ويب بسيطة للتجربة الفورية في المتصفح
-- `GET /healthz` — فحص صحة للاستخدام مع Cloud Run والمراقبة
+- `GET /` — واجهة وِب بسيطة للتجربة الفورية في المتصفح
+- `GET /health` — فحص صحة للاستخدام مع Cloud Run والمراقبة
+  (المسار `/healthz` محجوز في طبقة Google أمام Cloud Run ويرجع 404 — لا تستخدمه)
 
 **لا يحتاج مفتاح API**: يستخدم حساب خدمة Cloud Run للمصادقة على Vertex AI.
 
@@ -53,7 +54,7 @@ gcloud run deploy agent-service \
 
 ```bash
 URL=$(gcloud run services describe agent-service --region us-central1 --format='value(status.url)')
-curl -s "$URL/healthz"          # {"ok":true,...}
+curl -s "$URL/health"           # {"ok":true,...}
 curl -s -X POST "$URL/chat" -H 'content-type: application/json' \
      -d '{"message":"ما هو الطقس في الجزائر؟"}' | head -c 400
 open "$URL"                      # أو افتح الرابط في المتصفح
