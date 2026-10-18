@@ -1,27 +1,76 @@
-# DeepSeek Agent Test
+# DeepSeek Agent — وكيل ذكاء اصطناعي على Google Cloud Run
 
-## 💡 نصيحة مفيدة لتعلم البرمجة
+وكيل محادثة مع أدوات (استدعاء دوال تلقائي) مبني على **Vertex AI / Gemini**،
+جاهز للنشر على Cloud Run بدون Docker محلي.
 
-> **"تعلّم بالتطبيق العملي: لا تكتفِ بمشاهدة الدروس، بل اكتب الكود بنفسك وابنِ مشاريع صغيرة حقيقية منذ اليوم الأول."**
+## ما يفعله
 
-### لماذا هذه النصيحة مهمة؟
+- `POST /chat` — يرسل رسالة للوكيل ويستقبل الرد
+- أدوات حقيقية: `get_weather` (طقس تجريبي) و`add_numbers` (جمع)
+- `GET /` — واجهة ويب بسيطة للتجربة الفورية في المتصفح
+- `GET /healthz` — فحص صحة للاستخدام مع Cloud Run والمراقبة
 
-كثير من المبتدئين يقعون في فخ **"البرمجة بالمشاهدة"** (tutorial hell) — يشاهدون ساعات من الدروس
-لكنهم لا يكتبون سطراً واحداً بأنفسهم. الحقيقة أن البرمجة **مهارة عملية** تُبنى بالتكرار والممارسة،
-تماماً كتعلم العزف على آلة موسيقية أو تعلم لغة جديدة.
+**لا يحتاج مفتاح API**: يستخدم حساب خدمة Cloud Run للمصادقة على Vertex AI.
 
-### خطوات عملية لتطبيق النصيحة
+## الملفات
 
-1. **اكتب الكود يدوياً** — لا تنسخ وتلصق، فالأخطاء التي ترتكبها هي أفضل معلم لك.
-2. **ابدأ بمشاريع صغيرة** — آلة حاسبة، قائمة مهام، لعبة تخمين الأرقام… أي شيء يعمل فعلياً.
-3. **أكمل مشروعك مهما كان بسيطاً** — إنهاء مشروع صغير أفضل من البدء بعشرة مشاريع دون إتمامها.
-4. **جرّب وكسّر الكود** — غيّر القيم، احذف أسطراً، وشاهد ماذا يحدث؛ هكذا تفهم المنطق الحقيقي.
-5. **علّم غيرك ما تعلمته** — الشرح يثبّت المعرفة ويكشف الفجوات في فهمك.
+| الملف | الدور |
+|---|---|
+| `main.py` | تطبيق Flask + الوكيل + الأدوات + واجهة HTML |
+| `requirements.txt` | الاعتماديات (flask, gunicorn, google-genai) |
+| `Dockerfile` | صورة Python 3.12 صريحة (بديل موصى به عن buildpacks) |
+| `.python-version` | يمنع اختيار Python 3.14 تلقائيًا (سبب فشل سابق) |
+| `.gcloudignore` | يمنع رفع ملفات غير لازمة أو أسرار |
 
-### المبدأ الذهبي
+## النشر
 
-> **المشروع المكتمل — ولو كان بسيطاً — يُعلّمك أكثر من مئة درس لم تُطبّقها.**
+```bash
+# 1) المشروع والمنطقة
+export PROJECT_ID=project-f8643781-f075-4886-a4e
+export REGION=us-central1
+gcloud config set project "$PROJECT_ID"
 
----
+# 2) صلاحية الوكيل لاستدعاء Vertex AI
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:948681570348-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
 
-*تم إنشاء هذا الملّف تلقائياً بواسطة وكيل ذكاء اصطناعي (DeepSeek Agent).*
+# 3) النشر من جذر هذا المجلد (لا من ~)
+cd ~/deepseek-agent-test
+gcloud run deploy agent-service \
+  --source . \
+  --region "$REGION" \
+  --allow-unauthenticated \
+  --memory 1Gi \
+  --cpu 1 \
+  --timeout 300 \
+  --concurrency 40 \
+  --max-instances 3 \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_REGION=$REGION"
+```
+
+## التحقق
+
+```bash
+URL=$(gcloud run services describe agent-service --region us-central1 --format='value(status.url)')
+curl -s "$URL/healthz"          # {"ok":true,...}
+curl -s -X POST "$URL/chat" -H 'content-type: application/json' \
+     -d '{"message":"ما هو الطقس في الجزائر؟"}' | head -c 400
+open "$URL"                      # أو افتح الرابط في المتصفح
+```
+
+## متغيّرات البيئة
+
+| المتغير | الافتراضي | الوصف |
+|---|---|---|
+| `GOOGLE_CLOUD_PROJECT` | — (إلزامي) | معرّف المشروع |
+| `GOOGLE_CLOUD_REGION` | `us-central1` | منطقة Vertex AI |
+| `MODEL_ID` | `gemini-2.5-flash` | النموذج المستخدم |
+| `PORT` | `8080` | يضبطه Cloud Run تلقائيًا |
+
+## ملاحظات
+
+- لاستخدام DeepSeek API بدل Gemini: خزّن المفتاح في Secret Manager واقرأه بـ
+  `os.environ["DEEPSEEK_API_KEY"]`، وبدّل مُنشئ العميل في `main.py` (البنية نفسها).
+- اختبر محليًا قبل النشر: `pip install -r requirements.txt && python main.py`
+- بعد نجاح النشر ثبّت الإصدارات الفعلية: `pip freeze > requirements.txt`

@@ -1,0 +1,14 @@
+﻿.gcloudignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.log
+.gemini/
+.config/
+.cache/
+.npm/
+node_modules/
